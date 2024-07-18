@@ -108,7 +108,7 @@ class Estado(Resource):
     def get(self, id):
         try:
             cur = mysql.connection.cursor()
-            cur.execute("SELECT * FROM estado WHERE id = %s", (id))
+            cur.execute("SELECT * FROM estado WHERE id = %s", (id,))
             estado = cur.fetchone()
             cur.close()
 
@@ -123,10 +123,9 @@ class Estado(Resource):
                 'imagen_path': f"{request.host_url}uploads/{estado.get('imagen_path')}" if estado.get('imagen_path') else None
             }
 
-            return jsonify(estado_dict)
+            return estado_dict
         except Exception as e:
-            return jsonify({"message": f"Error retrieving estado with id {id}: {str(e)}"}), 500
-        
+            return {"message": f"Error retrieving estado with id {id}: {str(e)}"}, 500
 api.add_resource(Estado, '/estado', '/estado/<int:id>')
         
 
