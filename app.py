@@ -29,26 +29,63 @@ def uploaded_file(filename):
 
 class Infantes(Resource):
     def post(self):
-        data = request.get_json()
-        id = data.get('id')
-        nombre = data.get('nombre')
-        edad = data.get('edad')
-        sexo = data.get('sexo')
-        if sexo not in ['M', 'F']:
-            return {"message": "Sexo must be 'M' or 'F'"}, 400
-        peso = data.get('peso')
-        talla = data.get('talla')
-        try:
-            # Insertar datos en la tabla 'infante'
-            query = "INSERT INTO infante (id, nombre, edad, sexo, peso, talla) VALUES (%s, %s, %s, %s, %s, %s)"
-            cur = mysql.connection.cursor()
-            cur.execute(query, (id, nombre, edad, sexo, peso, talla))
-            mysql.connection.commit()
-            cur.close()
-        except Exception as e:
-            return {"message": f"Error inserting infante: {str(e)}"}, 500
-        return {"message": "Infante added successfully"}, 201
-   
+        id = request.form.get('id')
+        nombre = request.form.get('nombre')
+        sexo = request.form.get('sexo')
+        if sexo not in ['H', 'M']:
+            return {"message": "Sexo must be 'H' or 'M'"}, 400
+        
+        edad = request.form.get('edad')
+        peso = request.form.get('peso')
+        talla = request.form.get('talla')
+        if not id or not nombre or not sexo or not edad or not peso or not talla:
+            return {"message": "All fields are required"}, 400
+        
+        # Obtener los datos 
+        infante_id = id
+        imagen_path = request.files['imagen_path'] # Obtener el archivo de imagen enviado en la solicitud
+        
+        # Validar el archivo de imagen
+        if imagen_path and allowed_file(imagen_path.filename):
+            # Guardar el archivo de imagen en el directorio de uploads
+            filename = secure_filename(imagen_path.filename)
+            imagen_path.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+            
+            # Obtener la fecha actual
+            fecha = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+
+            # Calcular el grado de desnutrición
+            grado_desnutricion_red = 0
+            grado_desnutricion_icbf = 0 
+
+            try:
+                cur = mysql.connection.cursor()
+                
+                # Verificar si el infante ya existe
+                cur.execute("SELECT * FROM infante WHERE id = %s", (id,))
+                infante_exists = cur.fetchone()
+                
+                if not infante_exists:
+                    # Insertar datos en la tabla 'infante'
+                    query = "INSERT INTO infante (id, nombre, sexo) VALUES (%s, %s, %s)"
+                    cur.execute(query, (id, nombre, sexo))
+                    mysql.connection.commit()
+
+                # Insertar datos en la tabla 'estado'
+                query = "INSERT INTO estado (infante_id, fecha, peso, talla, edad, grado_desnutricion_icbf, grado_desnutricion_red, imagen_path) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)"
+                cur.execute(query, (infante_id, fecha, peso, talla, edad, grado_desnutricion_icbf, grado_desnutricion_red, filename))
+                estado_id = cur.lastrowid  # Obtener el id generado
+                mysql.connection.commit()
+                cur.close() 
+
+            except Exception as e:
+                return {"message": f"Error inserting datos: {str(e)}"}, 500
+
+            return {"message": "Infante added successfully", "estado_id": estado_id}, 201
+    
+        else:
+            return {"message": "Invalid file or file extension not allowed"}, 400
+
     def get(self, infante_id):
         try:
             if not infante_id:
@@ -62,10 +99,7 @@ class Infantes(Resource):
             for estado in estados:
                 estado_dict = {
                     'id': estado.get('id'),
-                    'infante_id': estado.get('infante_id'),
                     'fecha': estado.get('fecha').strftime('%Y-%m-%d %H:%M:%S') if estado.get('fecha') else None,
-                    'grado_desnutricion': estado.get('grado_desnutricion'),
-                    'imagen_path': f"{request.host_url}uploads/{estado.get('imagen_path')}" if estado.get('imagen_path') else None
                 }
                 response.append(estado_dict)
 
@@ -76,39 +110,29 @@ class Infantes(Resource):
 api.add_resource(Infantes, '/infantes', '/infantes/estados/<int:infante_id>')
 
 class Estado(Resource):
-    def post(self):
-            # Obtener los datos 
-        infante_id = request.form.get('infante_id')
-        grado_desnutricion = request.form.get('grado_desnutricion')
-        imagen_path = request.files['imagen_path'] # Obtener el archivo de imagen enviado en la solicitud
         
-        # Validar el archivo de imagen
-        if imagen_path and allowed_file(imagen_path.filename):
-            # Guardar el archivo de imagen en el directorio de uploads
-            filename = secure_filename(imagen_path.filename)
-            imagen_path.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
-            
-            # Obtener la fecha actual
-            fecha = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            
-            try:
-                # Insertar los datos en la tabla 'estado'
-                cur = mysql.connection.cursor()
-                cur.execute("INSERT INTO estado (infante_id, fecha, grado_desnutricion, imagen_path) VALUES (%s, %s, %s, %s)",
-                            (infante_id, fecha, grado_desnutricion, filename))
-                mysql.connection.commit()
-                cur.close()
-                
-                return {"message": "Estado added successfully"}, 201
-            except Exception as e:
-                return {"message": f"Error adding estado: {str(e)}"}, 500
-        else:
-            return {"message": "Invalid file or file extension not allowed"}, 400
-
     def get(self, id):
         try:
             cur = mysql.connection.cursor()
-            cur.execute("SELECT * FROM estado WHERE id = %s", (id,))
+            # Realizar una consulta JOIN para obtener los datos del estado y del infante
+            query = """
+                SELECT 
+                    estado.id AS estado_id, 
+                    estado.infante_id, 
+                    estado.fecha, 
+                    estado.peso,
+                    estado.talla,
+                    estado.edad,
+                    estado.grado_desnutricion_icbf, 
+                    estado.grado_desnutricion_red,
+                    estado.imagen_path,
+                    infante.nombre AS infante_nombre,
+                    infante.sexo AS infante_sexo
+                FROM estado
+                JOIN infante ON estado.infante_id = infante.id
+                WHERE estado.id = %s
+            """
+            cur.execute(query, (id,))
             estado = cur.fetchone()
             cur.close()
 
@@ -116,17 +140,23 @@ class Estado(Resource):
                 return {"message": f"Estado with id {id} not found"}, 404
 
             estado_dict = {
-                'id': estado.get('id'),
-                'infante_id': estado.get('infante_id'),
-                'fecha': estado.get('fecha').strftime('%Y-%m-%d %H:%M:%S') if estado.get('fecha') else None,
-                'grado_desnutricion': estado.get('grado_desnutricion'),
-                'imagen_path': f"{request.host_url}uploads/{estado.get('imagen_path')}" if estado.get('imagen_path') else None
+                'id': estado['estado_id'],
+                'infante_id': estado['infante_id'],
+                'fecha': estado['fecha'].strftime('%Y-%m-%d %H:%M:%S') if estado['fecha'] else None,
+                'peso': estado['peso'],
+                'talla': estado['talla'],
+                'edad': estado['edad'],
+                'grado_desnutricion_icbf': estado['grado_desnutricion_icbf'],
+                'grado_desnutricion_red': estado['grado_desnutricion_red'],
+                'imagen_path': f"{request.host_url}uploads/{estado['imagen_path']}" if estado['imagen_path'] else None,
+                'infante_nombre': estado['infante_nombre'],
+                'infante_sexo': estado['infante_sexo']
             }
 
             return estado_dict
         except Exception as e:
-            return {"message": f"Error retrieving estado with id {id}: {str(e)}"}, 500
-api.add_resource(Estado, '/estado', '/estado/<int:id>')
+            return jsonify({"message": f"Error retrieving estado with id {id}: {str(e)}"}), 500
+api.add_resource(Estado, '/estado/<int:id>')
         
 
 if __name__ == '__main__':
