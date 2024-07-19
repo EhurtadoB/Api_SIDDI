@@ -4,6 +4,7 @@ from flask_cors import CORS
 from config import Config
 from models import init_db
 from datetime import datetime
+import pandas as pd
 from werkzeug.utils import secure_filename
 
 import os
@@ -27,6 +28,70 @@ def allowed_file(filename):
 def uploaded_file(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
+def find_closer(lista_numeros, nuevo_numero):
+  # Inicializar el valor más cercano y la menor diferencia
+  mas_cercano = None
+  menor_diferencia = float('inf')
+
+  # Recorrer cada número en la lista
+  for numero in lista_numeros:
+    # Calcular la diferencia absoluta
+    diferencia = abs(numero - nuevo_numero)
+
+    # Si la diferencia es menor que la menor diferencia conocida,
+    # actualizar el valor más cercano y la menor diferencia
+    if diferencia < menor_diferencia:
+      mas_cercano = numero
+      menor_diferencia = diferencia
+
+  return mas_cercano
+
+def clas_peso_talla(peso, talla, sexo, edad):
+
+  # Creamos dataframe vacío
+  df = pd.DataFrame()
+
+  # Según el sexo y la edad leemos un csv
+  if sexo == "H" and (edad >= 0 and edad <= 2):
+    df = pd.read_csv("recursos/0-2_H.csv")
+
+  if sexo == "H" and (edad > 2 and edad <= 5):
+    df = pd.read_csv("recursos/2-5_H.csv")
+
+  if sexo == "M" and (edad >= 0 and edad <= 2):
+    df = pd.read_csv("recursos/0-2_M.csv")
+
+  if sexo == "M" and (edad > 2 and edad <= 5):
+    df = pd.read_csv("recursos/2-5_M.csv")
+
+  # Extraemos los valores de las longitudes del df
+  longitudes = df["LONGITUD"].tolist()
+
+  # Hallamos la longitud más próxima a la talla
+  # introducida
+  prox_long = find_closer(longitudes, talla)
+
+  # Hallamos la fila donde la longitud más próxima
+  # coincida en dicha columna
+  pesos = df[df["LONGITUD"] == prox_long].iloc[0]
+
+  # Volvemos la fila una lista
+  pesos_list = pesos.tolist()
+
+  # Se elimina el primer elemento de la fila
+  # (la longitud)
+  pesos_list.pop(0)
+
+  # Hallamos el peso más similar al introducido
+  prox_peso = find_closer(pesos_list, peso)
+
+  # Recorremos los pesos para comparar y
+  # hallar en cuál percentil quedó
+  for percentil, valor in pesos.items():
+    if valor == prox_peso:
+      return percentil
+
+
 class Infantes(Resource):
     def post(self):
         id = request.form.get('id')
@@ -36,6 +101,9 @@ class Infantes(Resource):
             return {"message": "Sexo must be 'H' or 'M'"}, 400
         
         edad = request.form.get('edad')
+        # Validar que la edad sea un número entero y mayor a 0 y menor a 5
+        if not edad or not edad.isdigit() or int(edad) < 0 or int(edad) > 5:
+            return {"message": "Edad must be an integer between 0 and 5"}, 400
         peso = request.form.get('peso')
         talla = request.form.get('talla')
         if not id or not nombre or not sexo or not edad or not peso or not talla:
@@ -56,7 +124,7 @@ class Infantes(Resource):
 
             # Calcular el grado de desnutrición
             grado_desnutricion_red = 0
-            grado_desnutricion_icbf = 0 
+            grado_desnutricion_icbf = clas_peso_talla(float(peso), float(talla), sexo, int(edad))
 
             try:
                 cur = mysql.connection.cursor()
