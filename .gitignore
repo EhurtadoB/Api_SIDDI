@@ -1,0 +1,11 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+
+# Entornos virtuales
+venv/
+.env
+
+# Archivos de configuración del entorno
+.envrc

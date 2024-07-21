@@ -1,0 +1,10 @@
+Flask
+Flask-MySQLdb
+Flask-Restful
+Flask-cors
+gunicorn
+pandas
+tensorflow
+keras
+opencv-python
+rembg
