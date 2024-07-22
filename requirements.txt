@@ -6,5 +6,5 @@ gunicorn
 pandas
 opencv-python
 rembg
-PIL
+Pillow
 io
