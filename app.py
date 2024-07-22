@@ -6,8 +6,6 @@ from models import init_db
 from datetime import datetime
 import pandas as pd
 from werkzeug.utils import secure_filename
-import tensorflow as tf
-import keras 
 import cv2
 import numpy as np
 from rembg import remove 
@@ -106,18 +104,6 @@ def load_and_preprocess_image(filepath):
   img = img.astype('float32') / 255.0  # Normalizar la imagen
   return img
 
-def red_neuronal(imagen_path):
-    class_labels = ['0DS', '1DS', '2DS', '3DS']
-    img_predict = load_and_preprocess_image(imagen_path)
-    img_predict = np.expand_dims(img_predict, axis=0)
-    model = keras.models.load_model('./model/model_v1.h5', compile=False)
-    model.compile(optimizer="sgd",
-              loss=keras.losses.CategoricalCrossentropy(),
-              metrics=["accuracy"])
-    prediction = model.predict(img_predict)
-    predicted_class_index = np.argmax(prediction)
-    predicted_class_label = class_labels[predicted_class_index]
-    return predicted_class_label
 
 
 class Infantes(Resource):
@@ -151,7 +137,7 @@ class Infantes(Resource):
             fecha = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
             # Calcular el grado de desnutrición
-            grado_desnutricion_red = red_neuronal(f"uploads/{filename}")
+            grado_desnutricion_red = 0
             grado_desnutricion_icbf = clas_peso_talla(float(peso), float(talla), sexo, int(edad))
 
             try:
