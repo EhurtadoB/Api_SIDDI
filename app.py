@@ -146,6 +146,7 @@ class Infantes(Resource):
         talla = request.form.get('talla')
         if not id or not nombre or not sexo or not edad or not peso or not talla:
             return {"message": "All fields are required"}, 400
+        grado_desnutricion_red = request.form.get('grado_desnutricion_red')
         
         # Obtener los datos 
         infante_id = id
@@ -161,7 +162,6 @@ class Infantes(Resource):
             fecha = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
             # Calcular el grado de desnutrición
-            grado_desnutricion_red = 0
             grado_desnutricion_icbf = clas_peso_talla(float(peso), float(talla), sexo, int(edad))
 
             try:
