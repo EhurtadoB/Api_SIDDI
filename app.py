@@ -12,6 +12,7 @@ from rembg import remove
 import io
 from PIL import Image
 import os
+import pytz
 
 
 app = Flask(__name__)
@@ -159,7 +160,8 @@ class Infantes(Resource):
             imagen_path.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
             
             # Obtener la fecha actual
-            fecha = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            zona_horaria = pytz.timezone('America/Bogota')
+            fecha = datetime.now(zona_horaria).strftime('%Y-%m-%d %H:%M:%S')
 
             # Calcular el grado de desnutrición
             grado_desnutricion_icbf = clas_peso_talla(float(peso), float(talla), sexo, int(edad))
